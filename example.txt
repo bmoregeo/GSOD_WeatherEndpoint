@@ -1,0 +1,252 @@
+*    u'sea_level_pressure': 1018.0,
+*    u'slp_count': 8,
+
+*    u'station_pressure': None,
+*    u'stp_count': 0,
+
+*    u'gust': None,
+
+*    u'windspeed': 0.7,
+*    u'max_windspeed': 1.9,
+*    u'wdsp_count': 8,
+
+*    u'visibility': 9.6,
+*    u'visib_count': 8,
+
+*    u'snow_depth': None,
+    u'snow_depth_flag': 0,
+*    u'total_precipitation': 0.12,
+    u'precipitation_flag': u'G',
+
+*    u'dewpoint': 61.5,
+*    u'dewpoint_count': 8
+
+
+    u'fog': 0,
+    u'thunder': 0,
+    u'snow': 0,
+    u'hail': 0,
+    u'tornado': 0,
+    u'rain': 0,
+
+*    u'max_temperature': 72.0,
+*    u'max_temp_flag': u'',
+*    u'min_temperature': 59.0,
+*    u'min_temp_flag': u'',
+*    u'avg_temperature': 65.2,
+*    u'temp_count': 8,
+
+
+
+{
+    --u'station': u'594170 99999',
+    u'date': datetime.datetime(1962, 12, 12, 0, 0),
+    u'_id': ObjectId('51ab5e94cd421b48d7111b8b'),
+}
+
+
+
+
+reduce_function = Code("""
+        function(key, values) {
+            var avg_temp_sum = 0;
+            var temp_count = 0;
+
+            var avg_ws_sum = 0;
+            var ws_count = 0;
+
+            var avg_slp_sum = 0;
+            var slp_count = 0;
+
+            var avg_stp_sum = 0;
+            var stp_count = 0;
+
+            var avg_v_sum = 0;
+            var v_count = 0;
+
+            var avg_dp_sum = 0;
+            var dp_count = 0;
+
+
+            var res = {
+                min_temperature: 9999.9,
+                max_temperature: -9999.9,
+                avg_temperature: 0,
+                max_windspeed: -9999.9,
+                max_gust: -9999.9,
+                max_visibility: -9999.9,
+                min_visibility: 9999.9,
+                total_precipitation: 0,
+                total_snow_depth: 0,
+                min_dewpoint:9999.9,
+                max_dewpoint:-9999.9,
+            };
+
+            for ( var i=1; i<values.length; i++ ) {
+
+                if ( values[i].min_temperature < res.min_temperature )
+                   res.min_temperature = values[i].min_temperature;
+
+                if ( values[i].max_temperature > res.max_temperature )
+                   res.max_temperature = values[i].max_temperature;
+
+                if ( values[i].max_windspeed > res.max_windspeed )
+                   res.max_windspeed = values[i].max_windspeed;
+
+                if ( values[i].max_gust > res.max_gust )
+                   res.max_gust = values[i].max_gust;
+
+                if ( values[i].visibility > res.max_visibility )
+                   res.max_visibility = values[i].visibility;
+
+                if ( values[i].visibility < res.min_visibility )
+                   res.min_visibility = values[i].visibility;
+
+                if ( values[i].dewpoint < res.min_dewpoint )
+                   res.min_dewpoint = values[i].dewpoint;
+
+                if ( values[i].dewpoint > res.max_dewpoint )
+                   res.max_dewpoint = values[i].dewpoint;
+
+                avg_temp_sum += (values[i].avg_temperature * values[i].temp_count);
+                temp_count += values[i].temp_count;
+
+                avg_ws_sum += (values[i].windspeed * values[i].wdsp_count);
+                ws_count += values[i].wdsp_count;
+
+                avg_slp_sum += (values[i].sea_level_pressure * values[i].slp_count);
+                slp_count += values[i].slp_count;
+
+                avg_stp_sum += (values[i].station_pressure * values[i].stp_count);
+                stp_count += values[i].stp_count;
+
+                avg_v_sum += (values[i].visibility * values[i].visib_count);
+                v_count += values[i].visib_count;
+
+                avg_dp_sum += (values[i].dewpoint * values[i].dewpoint_count);
+                dp_count += values[i].dewpoint_count;
+
+                if (values[i].total_precipitation){
+                    res.total_precipitation += values[i].total_precipitation;
+                }
+                if (values[i].snow_depth){
+                    res.total_snow_depth += values[i].snow_depth;
+                }
+
+            }
+
+            // Calculate Average Temperature
+            if (avg_temp_sum && temp_count) {
+                res.avg_temperature = avg_temp_sum / temp_count ;
+            }
+            else {
+                res.avg_temperature = null;
+            }
+
+            // Calculate Average Windspeed
+            if (avg_ws_sum && ws_count) {
+                res.avg_windspeed = avg_ws_sum / ws_count ;
+            }
+            else {
+                res.avg_windspeed = null;
+            }
+
+            // Calculate Average Sea Level Pressure
+            if (avg_slp_sum && slp_count) {
+                res.avg_sea_level_pressure = avg_slp_sum / slp_count ;
+            }
+            else {
+                res.avg_sea_level_pressure = null;
+            }
+
+            // Calculate Average Station Pressure
+            if (avg_stp_sum && stp_count) {
+                res.avg_station_pressure = avg_stp_sum / stp_count ;
+            }
+            else {
+                res.avg_station_pressure = null;
+            }
+
+            // Calculate Average Station Pressure
+            if (avg_v_sum && v_count) {
+                res.avg_visibility = avg_v_sum / v_count ;
+            }
+            else {
+                res.avg_visibility = null;
+            }
+
+            // Calculate Average Dew Point
+            if (avg_dp_sum && dp_count) {
+                res.avg_dewpoint = avg_dp_sum / dp_count ;
+            }
+            else {
+                res.avg_dewpoint = null;
+            }
+
+            return res;
+        }
+        """)
+
+
+
+
+map_function = Code("""
+        function() {
+            var row = {
+                    max_temperature: this.max_temperature,
+                    min_temperature: this.min_temperature,
+                    avg_temperature: this.avg_temperature,
+                    temp_count: this.temp_count,
+                    max_windspeed: this.max_windspeed,
+                    windspeed: this.windspeed,
+                    wdsp_count: this.wdsp_count,
+                    sea_level_pressure: this.sea_level_pressure,
+                    slp_count: this.slp_count,
+                    station_pressure: this.station_pressure,
+                    stp_count: this.stp_count,
+                    max_gust: this.gust,
+                    visibility: this.visibility,
+                    visib_count: this.visib_count,
+                    total_precipitation: this.total_precipitation,
+                    snow_depth: this.snow_depth,
+                    dewpoint: this.dewpoint,
+                    dewpoint_count: this.dewpoint_count,
+                    _id: this._id};
+           emit(this.station, row);
+        }
+        """)
+
+
+reduce_function = """
+    function (key, values) {
+        var result = {
+            max_temperature: -9999.9,
+            sum: 0
+        }
+        values.forEach(function(value) {
+            result.sum += value['count'];
+
+            if ( value.max_temperature > result.max_temperature )
+                       result.max_temperature = value.max_temperature;
+        });
+
+
+
+  return result;
+}
+    """
+
+
+        function(key, values) {
+
+            var result = {max_max_temperature: -9999.9, sum: 0};
+            values.forEach(function(value){
+                result.sum += value['count'];
+
+        if ( value.max_temperature > result.max_max_temperature ){
+            result.max_max_temperature = value.max_temperature;
+        }
+            });
+
+            return result;
+        }
